@@ -24,10 +24,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * {@link DrawerContentsReader} のゲート2/ゲート3 機械検証。
  *
- * <p>NBT サンプルは実機採取ではなく、Storage Drawers の save 側コード
- * （{@code StandardDrawerGroup.Slot#serializeNBT} / {@code FractionalDrawerGroup#serializeNBT}、
- * {@code _research/dl-analysis-2026-08/nbt_shape_1211.md} で 1.21.1 に照合済み）と同じ形を
- * 実際の vanilla {@code ItemStack#save} を使って組み立てている。</p>
+ * <p>NBT サンプルは実機採取ではなく、Storage Drawers の save 側コード（
+ * {@code StandardDrawerGroup.Slot#serializeNBT} / {@code FractionalDrawerGroup.FractionalStorage#serializeNBT}、
+ * {@code _research/refs_sd_emc/StorageDrawers_1211/} の branch {@code 1.21} commit {@code 62a33ab}
+ * で直接確認済み）と同じ形を、実際の vanilla {@code ItemStack#save} を使って組み立てている。</p>
  */
 class DrawerContentsReaderTest {
 
@@ -54,6 +54,37 @@ class DrawerContentsReaderTest {
             slot.putInt("Count", count);
         }
         return slot;
+    }
+
+    /**
+     * {@code FractionalDrawerGroup.FractionalStorage#serializeNBT}（:549-568）と同じ形の1要素を作る。
+     * item 本体は "Item" キーの下に入り、兄弟キーとして "Slot"/"Conv" を持つ
+     * （{@code slotTag.put("Item", itemTag)}。"Item" キーで包まれないという記述は
+     * {@code nbt_shape_1211.md} の誤りで、同じ commit の実ソースと食い違っていた。GAP_LOG 参照）。
+     */
+    private static CompoundTag fractionalSlot(Item item, int slot, int conv) {
+        CompoundTag slotTag = new CompoundTag();
+        slotTag.putByte("Slot", (byte) slot);
+        slotTag.putInt("Conv", conv);
+        slotTag.put("Item", itemProtoTag(item));
+        return slotTag;
+    }
+
+    private static CompoundTag fractionalDrawers(int pooledCount, CompoundTag... slots) {
+        ListTag itemsList = new ListTag();
+        for (CompoundTag s : slots) {
+            itemsList.add(s);
+        }
+        CompoundTag drawersCompound = new CompoundTag();
+        drawersCompound.put("Items", itemsList);
+        drawersCompound.putInt("Count", pooledCount);
+        return drawersCompound;
+    }
+
+    private static CompoundTag wrapAsDrawers(CompoundTag drawersValue) {
+        CompoundTag root = new CompoundTag();
+        root.put("Drawers", drawersValue);
+        return root;
     }
 
     private static ItemStack drawerItemStack(CompoundTag blockEntityTag) {
@@ -97,34 +128,55 @@ class DrawerContentsReaderTest {
     }
 
     @Test
-    void fractionalDrawer_primarySlotHasNoPlus_secondarySlotHasPlus() {
-        // FractionalDrawerGroup#serializeNBT と同じ形: トップレベル Drawers が compound、
-        // Items 各要素は Item キーで包まれず item 自身の save 結果に Slot/Conv が同居する
-        ListTag itemsList = new ListTag();
+    void fractionalDrawer_twoSlot_slot1IsModuloRemainderNotRawCount() {
+        // pooledCount=100, slot0 conv=9, slot1 conv=1
+        // slot0 = pooledCount/convRate[0] = 100/9 = 11（基準単位の総数、+無し）
+        // slot1 = (100/1) % (9/1) = 100 % 9 = 1（繰り上げ後の余り、+付き）
+        // 旧実装は slot1 を単純な pooledCount/conv = 100 と誤って出していた（二重カウント）
+        CompoundTag drawers = fractionalDrawers(100,
+                fractionalSlot(Items.REDSTONE_BLOCK, 0, 9),
+                fractionalSlot(Items.REDSTONE, 1, 1));
 
-        CompoundTag slot0 = itemProtoTag(Items.REDSTONE_BLOCK);
-        slot0.putByte("Slot", (byte) 0);
-        slot0.putInt("Conv", 9);
-        itemsList.add(slot0);
-
-        CompoundTag slot1 = itemProtoTag(Items.REDSTONE);
-        slot1.putByte("Slot", (byte) 1);
-        slot1.putInt("Conv", 1);
-        itemsList.add(slot1);
-
-        CompoundTag drawersCompound = new CompoundTag();
-        drawersCompound.put("Items", itemsList);
-        drawersCompound.putInt("Count", 100); // pooledCount
-
-        CompoundTag root = new CompoundTag();
-        root.put("Drawers", drawersCompound);
-
-        ItemStack stack = drawerItemStack(root);
+        ItemStack stack = drawerItemStack(wrapAsDrawers(drawers));
         List<Component> lines = DrawerContentsReader.readContentLines(stack, registries);
 
         assertEquals(2, lines.size());
-        assertTrue(lines.get(0).getString().contains("[11]"), lines.get(0).getString()); // 100/9=11、slot0は+無し
-        assertTrue(lines.get(1).getString().contains("[+100]"), lines.get(1).getString()); // 100/1=100、slot1は+付き
+        assertTrue(lines.get(0).getString().contains("[11]"), lines.get(0).getString());
+        assertTrue(lines.get(1).getString().contains("[+1]"), lines.get(1).getString());
+    }
+
+    @Test
+    void fractionalDrawer_threeTierCompacting_ironBlockIngotNugget() {
+        // 統括からの実例（鉄1000個相当、塊換算）。
+        // block(conv81)=1000/81=12(+無し) / ingot(conv9)=(1000/9)%(81/9)=111%9=3(+3) /
+        // nugget(conv1)=(1000/1)%(9/1)=1000%9=1(+1)
+        CompoundTag drawers = fractionalDrawers(1000,
+                fractionalSlot(Items.IRON_BLOCK, 0, 81),
+                fractionalSlot(Items.IRON_INGOT, 1, 9),
+                fractionalSlot(Items.IRON_NUGGET, 2, 1));
+
+        ItemStack stack = drawerItemStack(wrapAsDrawers(drawers));
+        List<Component> lines = DrawerContentsReader.readContentLines(stack, registries);
+
+        assertEquals(3, lines.size());
+        assertTrue(lines.get(0).getString().contains("[12]"), lines.get(0).getString());
+        assertTrue(lines.get(1).getString().contains("[+3]"), lines.get(1).getString());
+        assertTrue(lines.get(2).getString().contains("[+1]"), lines.get(2).getString());
+    }
+
+    @Test
+    void fractionalDrawer_missingPreviousSlot_fallsBackWithoutCrash() {
+        // 歯抜けデータ（slot 0 が Items に無いのに slot 1 だけがある壊れた保存を想定）。
+        // 本体の getStoredItemRemainder は convRate[slot-1]==0 のままだとゼロ除算で落ちるが、
+        // こちらは繰り上げ計算をせず pooledCount/conv にフォールバックしてクラッシュを避ける
+        CompoundTag drawers = fractionalDrawers(100,
+                fractionalSlot(Items.REDSTONE, 1, 1)); // slot 0 が欠落
+
+        ItemStack stack = drawerItemStack(wrapAsDrawers(drawers));
+        List<Component> lines = DrawerContentsReader.readContentLines(stack, registries);
+
+        assertEquals(1, lines.size());
+        assertTrue(lines.get(0).getString().contains("[+100]"), lines.get(0).getString());
     }
 
     @Test
@@ -191,6 +243,33 @@ class DrawerContentsReaderTest {
         List<Component> lines = DrawerContentsReader.readContentLines(stack, registries);
 
         assertEquals(1, lines.size()); // 不明アイテムの行はスキップされ、鉄インゴットの行だけ残る
+    }
+
+    @Test
+    void unknownFractionalItemIdIsSkippedButOtherRowsStillShown() {
+        // fractional 側も Item キーの下を読むようになったので、通常 drawer と同様に
+        // 未知 item id をスキップできることを確認する
+        // slot0(conv=9)を未知item、slot1(conv=1)を既知itemにする。conv値は実際の
+        // compacting drawer同様に厳密減少させる（等しいconvだとremainderが必ず0になり
+        // 「行が出ない」の原因が未知item判定なのかremainder計算なのか切り分けられないため）
+        CompoundTag badSlot = new CompoundTag();
+        badSlot.putByte("Slot", (byte) 0);
+        badSlot.putInt("Conv", 9);
+        CompoundTag badItem = new CompoundTag();
+        badItem.putString("id", "some_uninstalled_mod:does_not_exist");
+        badItem.putInt("count", 1);
+        badSlot.put("Item", badItem);
+
+        CompoundTag goodSlot = fractionalSlot(Items.REDSTONE, 1, 1);
+
+        CompoundTag drawers = fractionalDrawers(50, badSlot, goodSlot);
+
+        ItemStack stack = drawerItemStack(wrapAsDrawers(drawers));
+        List<Component> lines = DrawerContentsReader.readContentLines(stack, registries);
+
+        // slot1 = (50/1) % (9/1) = 50 % 9 = 5
+        assertEquals(1, lines.size());
+        assertTrue(lines.get(0).getString().contains("[+5]"), lines.get(0).getString());
     }
 
     @Test

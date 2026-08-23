@@ -10,7 +10,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Storage Drawers の drawer ブロックを壊して拾ったアイテムに付く
@@ -20,9 +22,13 @@ import java.util.List;
  * 一切依存しない。vanilla API（{@link CustomData} / {@link CompoundTag} / {@link ItemStack}）
  * だけで完結させることで、Storage Drawers 非導入環境でもクラス解決が起きないようにしている。</p>
  *
- * <p>読み取る NBT の形は {@code _research/dl-analysis-2026-08/nbt_shape_1211.md} で
- * Storage Drawers 1.21.1 の実 API（{@code branch 1.21}, commit {@code 62a33ab}）に対して
- * 照合済み。</p>
+ * <p>読み取る NBT の形は Storage Drawers 1.21.1 相当（branch {@code 1.21}, commit
+ * {@code 62a33ab}、{@code _research/refs_sd_emc/StorageDrawers_1211/}）の save 側コードに対して
+ * 直接照合済み。fractional drawer の要素構造については
+ * {@code _research/dl-analysis-2026-08/nbt_shape_1211.md} の記述（"Item キーでラップされて
+ * いない"）が同じ commit の実物と食い違っていたため、このファイルは nbt_shape_1211.md では
+ * なく実ソース（{@code FractionalDrawerGroup.java:549-568} の
+ * {@code slotTag.put("Item", itemTag)}）を正としている。詳細は GAP_LOG 参照。</p>
  */
 public final class DrawerContentsReader {
 
@@ -112,8 +118,15 @@ public final class DrawerContentsReader {
 
     /**
      * fractional drawer: トップレベル "Drawers" が CompoundTag。"Drawers.Count" が pool 全体量、
-     * "Drawers.Items" がリスト。要素は Item キーでラップされず、ItemStack 自身の save 結果に
-     * "Slot"(byte) と "Conv"(int) が直接同居する。表示数 = pooledCount / conv。
+     * "Drawers.Items" がリスト。各要素は通常 drawer と同じく item 本体が "Item" キーの下に入り、
+     * 兄弟キーとして "Slot"(byte) と "Conv"(int) を持つ（
+     * {@code FractionalDrawerGroup.java:549-568} の {@code serializeNBT}）。
+     *
+     * <p>表示する数量は {@code FractionalStorage#getStoredItemRemainder(slot)}
+     * （同ファイル:393-401）と同じ式で、単純な {@code pooledCount / conv}（＝
+     * {@code getStoredItemCount()} 相当）ではない。slot 0 は基準単位の総数
+     * （{@code pooledCount / convRate[0]}）、slot>0 は「ひとつ上の tier に繰り上がらない
+     * 余り」（{@code (pooledCount / convRate[slot]) % (convRate[slot-1] / convRate[slot])}）。</p>
      */
     private static void readFractional(CompoundTag drawersTag, HolderLookup.Provider registries, List<Component> lines) {
         if (!drawersTag.contains(KEY_ITEMS)) {
@@ -123,6 +136,23 @@ public final class DrawerContentsReader {
         int pooledCount = drawersTag.getInt(KEY_COUNT);
         ListTag itemsList = drawersTag.getList(KEY_ITEMS, Tag.TAG_COMPOUND);
 
+        // getStoredItemRemainder(slot) は convRate[slot-1] を参照する。serializeNBT は
+        // 非空 slot だけを書く（protoStack[i].isEmpty() なら continue）ので、正規化された
+        // 状態なら non-empty slot は 0 から連続している（FractionalStorage#normalizeGroup が
+        // 前詰めする）はずだが、本体の deserializeNBT は読み込み直後に必ず normalizeGroup() を
+        // 呼び直しており、そのコメントが "this fixes blocks that were saved broken" と明言して
+        // いる。つまり本体自身、保存データに歯抜けが起こりうる前提でいる。読み取り専用のこちらは
+        // normalizeGroup 相当の補修をしないため、先に slot -> conv の対応表を作っておく。
+        Map<Integer, Integer> convBySlot = new HashMap<>();
+        for (int i = 0; i < itemsList.size(); i++) {
+            CompoundTag slotTag = itemsList.getCompound(i);
+            int slot = slotTag.getByte(KEY_SLOT) & 0xFF;
+            int conv = slotTag.getByte(KEY_CONV) & 0xFF;
+            if (conv > 0) {
+                convBySlot.put(slot, conv);
+            }
+        }
+
         for (int i = 0; i < itemsList.size(); i++) {
             CompoundTag slotTag = itemsList.getCompound(i);
             int slot = slotTag.getByte(KEY_SLOT) & 0xFF;
@@ -130,22 +160,58 @@ public final class DrawerContentsReader {
             if (conv <= 0) {
                 continue;
             }
+            if (!slotTag.contains(KEY_ITEM)) {
+                continue;
+            }
 
-            // item 自身のフィールドがこの compound に直接同居する（"Item" キーで包まれていない）
-            ItemStack itemProto = ItemStack.parseOptional(registries, slotTag);
+            ItemStack itemProto = ItemStack.parseOptional(registries, slotTag.getCompound(KEY_ITEM));
             if (itemProto.isEmpty()) {
                 continue;
             }
 
-            int displayCount = pooledCount / conv;
-            if (displayCount <= 0) {
+            int remainder = fractionalRemainder(pooledCount, slot, conv, convBySlot);
+            if (remainder <= 0) {
                 continue;
             }
 
             // 本体 DrawerOverlay.addContent() と同じく、物理 slot 0 だけ "+" を付けない
             // （compacting drawer で slot 0 が基準単位、slot>0 がその余剰分を表す）
-            lines.add(formatFractionalLine(itemProto, displayCount, slot == 0));
+            lines.add(formatFractionalLine(itemProto, remainder, slot == 0));
         }
+    }
+
+    /**
+     * {@code FractionalStorage#getStoredItemRemainder(int)}
+     * （{@code FractionalDrawerGroup.java:393-401}）と同じ式:
+     * <pre>
+     * if (convRate[slot] == 0) return 0;
+     * if (slot == 0) return pooledCount / baseRate();          // baseRate() == convRate[0]
+     * return (pooledCount / convRate[slot]) % (convRate[slot - 1] / convRate[slot]);
+     * </pre>
+     * 呼び出し側で {@code conv <= 0} は既に弾いているので、ここでの {@code conv} は常に正。
+     *
+     * <p>本体は slot-1 の convRate が常に存在する前提で書かれており、そこが 0 のままだと
+     * {@code convRate[slot-1] / convRate[slot]} が 0 になり直後の {@code %} でゼロ除算する
+     * （本体自身は歯抜けを想定して読み込み直後に normalizeGroup() で補修するため、通常この
+     * パスには来ない）。こちらは補修をしないため、slot-1 の Conv が NBT に無い/0 の場合は
+     * 繰り上げ計算をせず素の {@code pooledCount / conv} を返し、クラッシュを避ける。</p>
+     */
+    private static int fractionalRemainder(int pooledCount, int slot, int conv, Map<Integer, Integer> convBySlot) {
+        if (slot == 0) {
+            return pooledCount / conv;
+        }
+
+        Integer prevConv = convBySlot.get(slot - 1);
+        if (prevConv == null || prevConv <= 0) {
+            return pooledCount / conv;
+        }
+
+        int divisor = prevConv / conv;
+        if (divisor <= 0) {
+            return pooledCount / conv;
+        }
+
+        return (pooledCount / conv) % divisor;
     }
 
     private static Component formatStandardLine(ItemStack itemProto, int count) {
@@ -167,8 +233,8 @@ public final class DrawerContentsReader {
         return itemProto.getHoverName().copy().append(Component.literal(suffix));
     }
 
-    private static Component formatFractionalLine(ItemStack itemProto, int displayCount, boolean isPrimarySlot) {
-        String suffix = isPrimarySlot ? " [" + displayCount + "]" : " [+" + displayCount + "]";
+    private static Component formatFractionalLine(ItemStack itemProto, int remainder, boolean isPrimarySlot) {
+        String suffix = isPrimarySlot ? " [" + remainder + "]" : " [+" + remainder + "]";
         return itemProto.getHoverName().copy().append(Component.literal(suffix));
     }
 }
