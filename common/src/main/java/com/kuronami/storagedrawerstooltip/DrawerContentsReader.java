@@ -119,7 +119,7 @@ public final class DrawerContentsReader {
     /**
      * fractional drawer: トップレベル "Drawers" が CompoundTag。"Drawers.Count" が pool 全体量、
      * "Drawers.Items" がリスト。各要素は通常 drawer と同じく item 本体が "Item" キーの下に入り、
-     * 兄弟キーとして "Slot"(byte) と "Conv"(int) を持つ（
+     * 兄弟キーとして "Slot"(byte) と "Conv"(int) を持つ。Conv は本体が putInt で書き getByte で読み戻すため上流に切り捨ての穴があるが、こちらは書かれた通り getInt で読む（
      * {@code FractionalDrawerGroup.java:549-568} の {@code serializeNBT}）。
      *
      * <p>表示する数量は {@code FractionalStorage#getStoredItemRemainder(slot)}
@@ -147,7 +147,7 @@ public final class DrawerContentsReader {
         for (int i = 0; i < itemsList.size(); i++) {
             CompoundTag slotTag = itemsList.getCompound(i);
             int slot = slotTag.getByte(KEY_SLOT) & 0xFF;
-            int conv = slotTag.getByte(KEY_CONV) & 0xFF;
+            int conv = slotTag.getInt(KEY_CONV);
             if (conv > 0) {
                 convBySlot.put(slot, conv);
             }
@@ -156,7 +156,7 @@ public final class DrawerContentsReader {
         for (int i = 0; i < itemsList.size(); i++) {
             CompoundTag slotTag = itemsList.getCompound(i);
             int slot = slotTag.getByte(KEY_SLOT) & 0xFF;
-            int conv = slotTag.getByte(KEY_CONV) & 0xFF;
+            int conv = slotTag.getInt(KEY_CONV);
             if (conv <= 0) {
                 continue;
             }
