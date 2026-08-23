@@ -39,6 +39,24 @@ neoForge {
             sourceSet sourceSets.main
         }
     }
+
+    // Minecraft + NeoForge on the test classpath, mod loaded in a minimal FML environment,
+    // so unit tests can bootstrap vanilla registries and exercise real ItemStack/NBT codecs
+    // (needed to test DrawerContentsReader, which lives in :common, against real vanilla data).
+    unitTest {
+        enable()
+        testedMod = mods."${mod_id}"
+    }
 }
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+}
