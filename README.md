@@ -1,6 +1,6 @@
 # Storage Drawers Tooltip
 
-> Storage Drawers の drawer を壊して拾ったアイテムの inventory tooltip に、中身（アイテムと個数）をそのまま表示する。
+> Shows what a picked-up Storage Drawers drawer is holding — item and count — right in its inventory tooltip.
 
 [![License: All Rights Reserved](https://img.shields.io/badge/License-All%20Rights%20Reserved-lightgrey.svg)](LICENSE)
 
@@ -28,7 +28,7 @@
 ## Installation
 
 1. NeoForge または Fabric（Minecraft 1.21.1）を導入
-2. `storage_drawers_tooltip-0.1.0-<loader>-1.21.1.jar` を `mods/` フォルダに入れる
+2. `storage_drawers_tooltip-neoforge-1.21.1-0.1.0.jar`（または `-fabric-`）を `mods/` フォルダに入れる
 
 クライアント専用の MOD なので、サーバー側に入れる必要はない。
 
