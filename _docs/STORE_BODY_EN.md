@@ -4,13 +4,7 @@ Adds the contents of a picked-up Storage Drawers drawer to its inventory tooltip
 
 Break a drawer that still has items in it and Storage Drawers keeps them sealed inside the item. The vanilla tooltip tells you the drawer's size and that it's holding something, but not what. This mod reads that sealed data and appends the missing line:
 
-```
-Oak Drawers 1x1
-Holds 32 stacks per drawer
-Contents sealed within
-Iron Ingot [1x64]
-Storage Drawers
-```
+![Tooltip for an Oak Drawers 1x1 holding an iron ingot, showing the added "Iron Ingot [1x64]" line](https://raw.githubusercontent.com/KURONAMI333/storage-drawers-tooltip/main/_docs/images/tooltip-standard-drawer.png)
 
 Compacting drawers get one line per upgrade tier; the bracket format matches how Storage Drawers formats stack counts elsewhere.
 
