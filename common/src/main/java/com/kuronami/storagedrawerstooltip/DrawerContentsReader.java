@@ -44,22 +44,49 @@ public final class DrawerContentsReader {
     }
 
     /**
+     * 中身1件分。{@code icon} は tooltip の左端に描くスプライトの元になる ItemStack、
+     * {@code label} はその右に並べる文字列（アイテム名 + 個数）。
+     *
+     * @param icon  描画用の ItemStack。個数はここでは意味を持たない（表示は label 側）
+     * @param label {@link #readContentLines} が返すのと同一の Component
+     */
+    public record ContentRow(ItemStack icon, Component label) {
+    }
+
+    /**
      * @param stack      drawer ブロックが壊されて落ちたアイテム本体（drawer アイテムとは限らない。
      *                   {@code BLOCK_ENTITY_DATA} を持たない/{@code Drawers} を持たないアイテムは
      *                   即座に空リストで返る）
      * @param registries ItemStack を復元するための registry access。null を渡してよい
      *                   （取得できなければ空リストを返す）
-     * @return tooltip に追加する行。空なら何も足さない
+     * @return tooltip に追加する行（テキストのみ）。空なら何も足さない
      */
     public static List<Component> readContentLines(ItemStack stack, HolderLookup.Provider registries) {
-        List<Component> lines = new ArrayList<>();
+        List<ContentRow> rows = readContentRows(stack, registries);
+        List<Component> lines = new ArrayList<>(rows.size());
+        for (ContentRow row : rows) {
+            lines.add(row.label());
+        }
+        return lines;
+    }
+
+    /**
+     * {@link #readContentLines} と同じ走査を行い、行ごとにアイコン用の ItemStack も返す。
+     * 行の内容・順序・除外条件は {@link #readContentLines} と同一。
+     *
+     * @param stack      readContentLines と同じ
+     * @param registries readContentLines と同じ
+     * @return tooltip に追加する行。空なら何も足さない
+     */
+    public static List<ContentRow> readContentRows(ItemStack stack, HolderLookup.Provider registries) {
+        List<ContentRow> rows = new ArrayList<>();
         if (stack == null || stack.isEmpty() || registries == null) {
-            return lines;
+            return rows;
         }
 
         CustomData customData = stack.get(DataComponents.BLOCK_ENTITY_DATA);
         if (customData == null) {
-            return lines;
+            return rows;
         }
 
         CompoundTag root;
@@ -67,19 +94,19 @@ public final class DrawerContentsReader {
             root = customData.copyTag();
         } catch (RuntimeException e) {
             Constants.LOG.debug("BLOCK_ENTITY_DATA を CompoundTag として読めなかった", e);
-            return lines;
+            return rows;
         }
 
         if (!root.contains(KEY_DRAWERS)) {
-            return lines;
+            return rows;
         }
 
         try {
             Tag drawersTag = root.get(KEY_DRAWERS);
             if (drawersTag instanceof ListTag listTag) {
-                readStandard(listTag, registries, lines);
+                readStandard(listTag, registries, rows);
             } else if (drawersTag instanceof CompoundTag compoundTag) {
-                readFractional(compoundTag, registries, lines);
+                readFractional(compoundTag, registries, rows);
             }
             // それ以外の型（版差・破損）は何も足さずに無視する
         } catch (RuntimeException e) {
@@ -88,11 +115,11 @@ public final class DrawerContentsReader {
             Constants.LOG.debug("Drawer contents の一部が読めなかった", e);
         }
 
-        return lines;
+        return rows;
     }
 
     /** 通常 drawer: トップレベル "Drawers" が ListTag。要素順 = slot 番号。 */
-    private static void readStandard(ListTag drawersList, HolderLookup.Provider registries, List<Component> lines) {
+    private static void readStandard(ListTag drawersList, HolderLookup.Provider registries, List<ContentRow> rows) {
         for (int i = 0; i < drawersList.size(); i++) {
             CompoundTag slotTag = drawersList.getCompound(i);
             if (slotTag.getBoolean(KEY_MISSING)) {
@@ -112,7 +139,7 @@ public final class DrawerContentsReader {
                 continue;
             }
 
-            lines.add(formatStandardLine(itemProto, count));
+            rows.add(new ContentRow(itemProto, formatStandardLine(itemProto, count)));
         }
     }
 
@@ -128,7 +155,7 @@ public final class DrawerContentsReader {
      * （{@code pooledCount / convRate[0]}）、slot>0 は「ひとつ上の tier に繰り上がらない
      * 余り」（{@code (pooledCount / convRate[slot]) % (convRate[slot-1] / convRate[slot])}）。</p>
      */
-    private static void readFractional(CompoundTag drawersTag, HolderLookup.Provider registries, List<Component> lines) {
+    private static void readFractional(CompoundTag drawersTag, HolderLookup.Provider registries, List<ContentRow> rows) {
         if (!drawersTag.contains(KEY_ITEMS)) {
             return;
         }
@@ -176,7 +203,7 @@ public final class DrawerContentsReader {
 
             // 本体 DrawerOverlay.addContent() と同じく、物理 slot 0 だけ "+" を付けない
             // （compacting drawer で slot 0 が基準単位、slot>0 がその余剰分を表す）
-            lines.add(formatFractionalLine(itemProto, remainder, slot == 0));
+            rows.add(new ContentRow(itemProto, formatFractionalLine(itemProto, remainder, slot == 0)));
         }
     }
 
