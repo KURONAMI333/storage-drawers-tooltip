@@ -165,6 +165,30 @@ class DrawerContentsReaderTest {
     }
 
     @Test
+    void fractionalDrawer_realWorldSample_wholeMultiple_onlyPrimaryLineShown() {
+        // 実際の Storage Drawers が生成した block entity データから採取した値
+        // （3段圧縮ドロワー・pooled 4941）。この drawer 自体は壊されておらず world に placed のままなので
+        // ItemStack の BLOCK_ENTITY_DATA component としては未確認だが、"Drawers" compound の
+        // 構造自体は本体の serializeNBT がそのまま item へコピーする形と同一。
+        // pooledCount=4941 は conv=81 の丁度61倍（4941=61*81）で、ingot(conv9)/nugget(conv1)の
+        // remainder が両方ちょうど0になる実例。手組みの既存テスト（1000, 100）はどれも全 slot で
+        // remainder>0 になるよう選ばれており、「上位 tier の remainder がちょうど0で行ごと消える」
+        // ケースは未カバーだった。
+        CompoundTag drawers = fractionalDrawers(4941,
+                fractionalSlot(Items.IRON_BLOCK, 0, 81),
+                fractionalSlot(Items.IRON_INGOT, 1, 9),
+                fractionalSlot(Items.IRON_NUGGET, 2, 1));
+
+        ItemStack stack = drawerItemStack(wrapAsDrawers(drawers));
+        List<Component> lines = DrawerContentsReader.readContentLines(stack, registries);
+
+        // slot0 = 4941/81 = 61（+無し）/ slot1 = (4941/9)%(81/9) = 549%9 = 0（行なし）/
+        // slot2 = (4941/1)%(9/1) = 4941%9 = 0（行なし）
+        assertEquals(1, lines.size());
+        assertTrue(lines.get(0).getString().contains("[61]"), lines.get(0).getString());
+    }
+
+    @Test
     void fractionalDrawer_missingPreviousSlot_fallsBackWithoutCrash() {
         // 歯抜けデータ（slot 0 が Items に無いのに slot 1 だけがある壊れた保存を想定）。
         // 本体の getStoredItemRemainder は convRate[slot-1]==0 のままだとゼロ除算で落ちるが、
