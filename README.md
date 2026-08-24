@@ -1,32 +1,63 @@
-# MultiLoader Template
+# Storage Drawers Tooltip
 
-This project provides a Gradle project template that can compile Minecraft mods for multiple modloaders using a common project for the sources. This project does not require any third party libraries or dependencies. If you have any questions or want to discuss the project, please join our [Discord](https://discord.myceliummod.network).
+> Storage Drawers の drawer を壊して拾ったアイテムの inventory tooltip に、中身（アイテムと個数）をそのまま表示する。
 
-## Getting Started
+[![License: All Rights Reserved](https://img.shields.io/badge/License-All%20Rights%20Reserved-lightgrey.svg)](LICENSE)
 
-### IntelliJ IDEA
-This guide will show how to import the MultiLoader Template into IntelliJ IDEA. The setup process is roughly equivalent to setting up the modloaders independently and should be very familiar to anyone who has worked with their MDKs.
+---
 
-1. Clone or download this repository to your computer.
-2. Configure the project by setting the properties in the `gradle.properties` file. You will also need to change the `rootProject.name`  property in `settings.gradle`, this should match the folder name of your project, or else IDEA may complain.
-3. Open the template's root folder as a new project in IDEA. This is the folder that contains this README.md file and the gradlew executable.
-4. If your default JVM/JDK is not Java 21 you will encounter an error when opening the project. This error is fixed by going to `File > Settings > Build, Execution, Deployment > Build Tools > Gradle > Gradle JVM` and changing the value to a valid Java 21 JVM. You will also need to set the Project SDK to Java 21. This can be done by going to `File > Project Structure > Project SDK`. Once both have been set open the Gradle tab in IDEA and click the refresh button to reload the project.
-5. Open your Run/Debug Configurations. Under the `Application` category there should now be options to run Fabric and NeoForge projects. Select one of the client options and try to run it.
-6. Assuming you were able to run the game in step 5 your workspace should now be set up.
+## Why Storage Drawers Tooltip?
 
-### Eclipse
-While it is possible to use this template in Eclipse it is not recommended. During the development of this template multiple critical bugs and quirks related to Eclipse were found at nearly every level of the required build tools. While we continue to work with these tools to report and resolve issues support for projects like these are not there yet. For now Eclipse is considered unsupported by this project. The development cycle for build tools is notoriously slow so there are no ETAs available.
+アイテムが入ったままの drawer を壊すと、Storage Drawers はその中身を drawer アイテム自身の中に封印する。バニラの tooltip はサイズと「何か入っている」ことまでは教えてくれるが、何が何個かは表示しない。このMODは drawer アイテムが持つ保存データをそのまま読み、足りない行を tooltip に追記する:
 
-## Development Guide
-When using this template the majority of your mod should be developed in the `common` project. The `common` project is compiled against the vanilla game and is used to hold code that is shared between the different loader-specific versions of your mod. The `common` project has no knowledge or access to ModLoader specific code, apis, or concepts. Code that requires something from a specific loader must be done through the project that is specific to that loader, such as the `fabric` or `neoforge` projects.
+- 通常の drawer は「アイテム名 [個数]」の1行
+- compacting drawer（圧縮ドロワー）は tier ごとに1行、`[+n]` 表記はゲーム内の他の個数表示と揃えてある
 
-Loader specific projects such as the `fabric` and `neoforge` project are used to load the `common` project into the game. These projects also define code that is specific to that loader. Loader specific projects can access all the code in the `common` project. It is important to remember that the `common` project can not access code from loader specific projects.
+---
 
-## Removing Platforms and Loaders
-While this template has support for many modloaders, new loaders may appear in the future, and existing loaders may become less relevant.
+## Features
 
-Removing loader specific projects is as easy as deleting the folder, and removing the `include("projectname")` line from the `settings.gradle` file.
-For example if you wanted to remove support for `forge` you would follow the following steps:
+- 🔍 **拾う前に中身が分かる** — インベントリに入れたまま、tooltip を見るだけで確認できる
+- 📦 **compacting drawer にも対応** — 圧縮された複数 tier の在庫を tier ごとに1行ずつ表示
+- 🖼️ **アイテムアイコン付き** — 各行の頭にそのアイテムのアイコンが並ぶ
+- 🧩 **Storage Drawers 本体への依存なし** — drawer アイテム自身の保存データを直接読むため、Storage Drawers が入っていない環境でも単体で読み込める（表示するものが無いだけ）
+- ⚙️ **設定項目なし** — 導入するだけで効く
 
-1. Delete the subproject folder. For example, delete `MultiLoader-Template/forge`.
-2. Remove the project from `settings.gradle`. For example, remove `include("forge")`. 
+---
+
+## Installation
+
+1. NeoForge または Fabric（Minecraft 1.21.1）を導入
+2. `storage_drawers_tooltip-0.1.0-<loader>-1.21.1.jar` を `mods/` フォルダに入れる
+
+クライアント専用の MOD なので、サーバー側に入れる必要はない。
+
+---
+
+## Configuration
+
+この MOD に設定項目は無い。導入した時点の挙動がそのまま体験になる。
+
+---
+
+## Compatibility
+
+NeoForge・Fabric、Minecraft 1.21.1 に対応。Storage Drawers が入っていない環境でも読み込めるが、表示する中身が無いため何も追加されない。
+
+---
+
+## Bug Reports / Feature Requests
+
+GitHub Issues に投げてください: [Issues](https://github.com/KURONAMI333/storage-drawers-tooltip/issues)
+
+---
+
+## License
+
+[All Rights Reserved](LICENSE) — modpack への同梱は自由（許可・クレジット不要）。単体での再配布と改変版の配布は不可。ソースは読めるように公開しています。
+
+---
+
+## Credits
+
+- Author: KURONAMI
