@@ -1,5 +1,3 @@
-# Storage Drawers Tooltip
-
 Adds the contents of a picked-up Storage Drawers drawer to its inventory tooltip — item and count, not just "something's inside."
 
 Break a drawer that still has items in it and Storage Drawers keeps them sealed inside the item. The vanilla tooltip tells you the drawer's size and that it's holding something, but not what. This mod reads that sealed data and appends the missing line:
@@ -10,6 +8,6 @@ Compacting drawers get one line per upgrade tier; the bracket format matches how
 
 No dependency on Storage Drawers — it reads the drawer's own saved data directly, so it loads fine even without Storage Drawers installed (it just has nothing to show). No config, no commands.
 
-Client-side only — no need to install it on the server.
+Bugs and questions: comment on the CurseForge page, or DM @kuronami333 on X.
 
-Free to use in any modpack. Source and issues: https://github.com/KURONAMI333/storage-drawers-tooltip
+All Rights Reserved. Modpack inclusion is allowed without permission or credit. Source: https://github.com/KURONAMI333/storage-drawers-tooltip
