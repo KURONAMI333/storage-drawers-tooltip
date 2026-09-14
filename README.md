@@ -1,63 +1,21 @@
 # Storage Drawers Tooltip
 
-> Shows what a picked-up Storage Drawers drawer is holding — item and count — right in its inventory tooltip.
+Adds the contents of a picked-up Storage Drawers drawer to its inventory tooltip — item and count, not just "something's inside."
 
-[![License: All Rights Reserved](https://img.shields.io/badge/License-All%20Rights%20Reserved-lightgrey.svg)](LICENSE)
+Break a drawer that still has items in it and Storage Drawers keeps them sealed inside the item. The vanilla tooltip tells you the drawer's size and that it's holding something, but not what. This mod reads that sealed data and appends the missing line:
 
----
+![Tooltip for an Oak Drawers 1x1 holding an iron ingot, showing the added "Iron Ingot [1x64]" line](_docs/images/tooltip-standard-drawer.png)
 
-## Why Storage Drawers Tooltip?
+Compacting drawers get one line per upgrade tier; the bracket format matches how Storage Drawers formats stack counts elsewhere.
 
-アイテムが入ったままの drawer を壊すと、Storage Drawers はその中身を drawer アイテム自身の中に封印する。バニラの tooltip はサイズと「何か入っている」ことまでは教えてくれるが、何が何個かは表示しない。このMODは drawer アイテムが持つ保存データをそのまま読み、足りない行を tooltip に追記する:
+No dependency on Storage Drawers — it reads the drawer's own saved data directly, so it loads fine even without Storage Drawers installed (it just has nothing to show). No config, no commands.
 
-- 通常の drawer は「アイテム名 [個数]」の1行
-- compacting drawer（圧縮ドロワー）は tier ごとに1行、`[+n]` 表記はゲーム内の他の個数表示と揃えてある
+All Rights Reserved. Modpack inclusion is allowed without permission or credit. Source: https://github.com/KURONAMI333/storage-drawers-tooltip
 
----
+## Downloads and support
 
-## Features
+Downloads: [CurseForge](https://www.curseforge.com/minecraft/mc-mods/storage-drawers-tooltip) · [GitHub Releases](https://github.com/KURONAMI333/storage-drawers-tooltip/releases/tag/v0.1.0).
 
-- 🔍 **拾う前に中身が分かる** — インベントリに入れたまま、tooltip を見るだけで確認できる
-- 📦 **compacting drawer にも対応** — 圧縮された複数 tier の在庫を tier ごとに1行ずつ表示
-- 🖼️ **アイテムアイコン付き** — 各行の頭にそのアイテムのアイコンが並ぶ
-- 🧩 **Storage Drawers 本体への依存なし** — drawer アイテム自身の保存データを直接読むため、Storage Drawers が入っていない環境でも単体で読み込める（表示するものが無いだけ）
-- ⚙️ **設定項目なし** — 導入するだけで効く
+For bugs and questions, comment on the [CurseForge page](https://www.curseforge.com/minecraft/mc-mods/storage-drawers-tooltip) or DM [@kuronami333 on X](https://x.com/kuronami333).
 
----
-
-## Installation
-
-1. NeoForge または Fabric（Minecraft 1.21.1）を導入
-2. `storage_drawers_tooltip-neoforge-1.21.1-0.1.0.jar`（または `-fabric-`）を `mods/` フォルダに入れる
-
-クライアント専用の MOD なので、サーバー側に入れる必要はない。
-
----
-
-## Configuration
-
-この MOD に設定項目は無い。導入した時点の挙動がそのまま体験になる。
-
----
-
-## Compatibility
-
-NeoForge・Fabric、Minecraft 1.21.1 に対応。Storage Drawers が入っていない環境でも読み込めるが、表示する中身が無いため何も追加されない。
-
----
-
-## Bug Reports / Feature Requests
-
-GitHub Issues に投げてください: [Issues](https://github.com/KURONAMI333/storage-drawers-tooltip/issues)
-
----
-
-## License
-
-[All Rights Reserved](LICENSE) — modpack への同梱は自由（許可・クレジット不要）。単体での再配布と改変版の配布は不可。ソースは読めるように公開しています。
-
----
-
-## Credits
-
-- Author: KURONAMI
+[Source](https://github.com/KURONAMI333/storage-drawers-tooltip) · [License](LICENSE)
